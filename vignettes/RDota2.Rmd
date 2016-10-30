@@ -1,0 +1,619 @@
+---
+title: "RDota2"
+author: "Theo Boutaris"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Documentation and Examples for RDota2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, echo = FALSE}
+NOT_CRAN <- identical(tolower(Sys.getenv("NOT_CRAN")), "true")
+NOT_TRAVIS <- !identical(tolower(Sys.getenv("TRAVIS")), "true")
+NOT_ALL <- NOT_CRAN & NOT_TRAVIS
+knitr::opts_chunk$set(purl = NOT_ALL)
+```
+
+RDota2 is an R Steam API client for Valve's game Dota2. 
+
+In order to use the package you will need to have a Steam Key which you can get from [Steam Community](https://steamcommunity.com/login/home/?goto=%2Fdev%2Fapikey). You will also need a Steam account in order to request a key.
+
+## Usage
+
+The typical workflow of RDota2 would include registering a key on R and then using the get_* family functions to access the API.
+
+#### Registering a key on R
+
+The typical way of working with RDota2 is to register a key on R (**once in every section**) and then that key will automatically be used within each one of the get_* family functions.
+
+In order to register a key on R you need to use the `key_actions` function in the following way:
+
+```{R, eval = NOT_ALL}
+#load installed package 
+library(RDota2)
+```
+
+```{R, eval = FALSE}
+#register key on R. xxxxxx is the key you received from Steam.
+key_actions(action = 'register_key', value = 'xxxxxxxx')
+```
+
+Instead of specifying the key on your console / script (where it would be visible to anyone), good practice dictates to save it in an environment variable. This is a very easy to do process and you only need to do it once. The key will always be made easily available in your R sessions after this. In order to store the key in an environment variable you would need to take the next steps (the following procedure has been taken from the appendix of [Best practices for writing an API package](https://cran.r-project.org/package=httr)): 
+
+1. Identify your home directory. If you don't know which one it is just run `normalizePath("~/")` in the R console. 
+2. In your home directory create a file called .Renviron (it shouldn't have an extension, like for example .txt). If questioned, YES you do want to use a file name that begins with a dot. Note that by default dotfiles are usually hidden. But within RStudio, the file browser will make .Renviron visible and therefore easy to edit in the future.
+3. In the .Renviron file type a line like `RDota_KEY=xxxxxxxx`, where RDota_KEY will be the name of the R environment variable and xxxxxxxx will be your individual Steam API Key. Make sure the last line in the file is empty (if it isn’t R will silently fail to load the file). If you’re using an editor that shows line numbers, there should be two lines, where the second one is empty.
+4. Restart your R session if you were using one, since .Renviron is parsed at the start of an R session.
+5. Access the key on your R session using `Sys.getenv`.
+
+So, the best practice would be to register your key in the following way:
+
+```{R, eval = NOT_ALL}
+#register key on R. Sys.getenv('RDota_KEY') will retrieve the value of the  
+#RDota_KEY environment variable which is saved in your .Renviron file.
+key_actions(action = 'register_key', value = Sys.getenv('RDota_KEY'))
+
+#now you can use any of the get_* family functions without specifying a key e.g.
+heroes <- get_heroes()
+head(heroes$content)
+```
+
+Each of the `get_*` family functions has a key argument which should only be used if you work with multiple keys. 
+
+#### Other Key Actions
+
+Other key actions include retrieving a key (to make sure it has been set for example) or deleting
+the key:
+
+```{R, eval = FALSE}
+#retrieve key
+key_actions('get_key')
+#delete key
+key_actions('delete_key')
+```
+
+## get_* Family Funtions
+
+The get_* family functions are the functions used to access the API. They map the following API methods:
+
+Dota 2 methods relating to match information:
+
+* GetLeagueListing    
+  Information about DotaTV-supported leagues.
+* GetLiveLeagueGames    
+  A list of in-progress league matches, as well as details of that match as it unfolds.
+* GetMatchDetails    
+  Information about a particular match.
+* GetMatchHistory    
+  A list of matches, filterable by various parameters.
+* GetMatchHistoryBySequenceNum     
+  A list of matches ordered by their sequence num.
+* GetScheduledLeagueGames     
+  A list of scheduled league games coming up.
+* GetTeamInfoByTeamID     
+  A list of all the teams set up in-game.
+* GetTournamentPlayerStats     
+  Stats about a particular player within a tournament.
+* GetTopLiveGame     
+
+Dota 2 methods relating to Dota 2 economy:
+
+* GetGameItems     
+  Dota 2 In-game items
+* GetItemIconPath     
+* GetHeroes     
+  A list of heroes within Dota 2.
+* GetRarities     
+  Dota 2 item rarity list.
+* GetTournamentPrizePool      
+  The current prizepool for specific tournaments.
+* GetEventStatsForAccount     
+
+You can access the Steam API Documentation from [this link](https://wiki.teamfortress.com/wiki/WebAPI).
+
+All get_* functions have three common arguments that can be used:
+
+* key - This is to be used only in the case of working with multiple keys. If you work with just one key please 
+  follow the procedure of using an R environment variable, which is described in detail above.
+* language - This is the ISO639-1 code for all languages. You can select whichever you like. The default language is
+  'en' which corresponds to english. If the language chosen is not supported, english will be returned.
+* dota_id - This can take just tree values according to the Dota App ID. 570 for Dota2, 816 for Dota internal test and
+  205790 for Dota 2 (beta) test. 570 is the default one.
+
+Moreover, all get_* functions will return a `dota_api` object that contains 3 elements:
+
+* url - The request url (without showing the key).
+* content - This is the useful element to the user, since it contains Dota2 data.
+* response - This shows information about the response retrieved from steam like headers, status, cookies, date, etc. 
+
+By default when printing a `dota_api` object **only the content element will be printed on screen**.
+
+The above are true for all the get_* functions, so they will not be analysed in detail in the individual function 
+demonstration that follows.
+
+### get_league_listing 
+
+`get_league_listing` returns information about Dota TV-supported leagues. The function does not require any 
+extra arguments and outputs a data.frame with the following columns:
+
+* name: The league name.
+* leagueid: The ID of the league (unique).
+* description: A description containing information about the league.
+* tournament_url: The website of the link.
+* itemdef: Not documented on the API.
+
+Steam API Documentation: [GetLeagueListing](https://wiki.teamfortress.com/wiki/WebAPI/GetLeagueListing)
+
+```{R, eval = NOT_ALL}
+str(get_league_listing()$content)
+```
+
+### get_live_league_games
+
+`get_live_league_games` returns information about the live league games. The function does not require any 
+extra arguments and outputs a list (called games), of which each element is a game. Each game contains the following
+information (some might be missing for some games):
+
+* players: A list of lists containing information about the players.
+* radiant_team: A list with information about the radiant team.
+* dire_team: A list with information about the dire team..
+* lobby_id: The lobby id.
+* match_id: The match id.
+* spectators: The number of spectators.
+* series_id: The series id.
+* game_number: The game number.
+* league_id: The league id.
+* stream_delay_s: The stream delay in secs.
+* radiant_series_wins: Radiant series wins.
+* dire_series_wins: Dire series wins.
+* series_type: Series type.
+* league_series_id: The league series id.
+* league_game_id: The league game id.
+* stage_name: The name of the stage.
+* league_tier: League tier.
+* scoreboard: A huge list containing scoreboard information.
+
+Steam API Documentation: [GetLiveLeagueGames](https://wiki.teamfortress.com/wiki/WebAPI/GetLiveLeagueGames)
+
+```{R, eval = FALSE}
+#information returned about the first game
+str(get_live_league_games()$content$games[[1]])
+```
+```{R, eval = FALSE}
+#### List of 17
+##  $ players            :List of 11
+##   ..$ :List of 4
+##   .. ..$ account_id: int 292934088
+##   .. ..$ name      : chr "FACEIT.com | Shannon Bot"
+##   .. ..$ hero_id   : int 0
+##   .. ..$ team      : int 4
+##   ..$ :List of 4
+##   .. ..$ account_id: int 124344565
+##   .. ..$ name      : chr "Ryadovoi Lebys"
+##   .. ..$ hero_id   : int 91
+##   .. ..$ team      : int 1
+##   ..$ :List of 4
+##   .. ..$ account_id: int 374473137
+##   .. ..$ name      : chr "<U+041D><U+0410><U+0421><U+0415><U+041A><U+041E><U+041C><U+042B><U+0428>""| __truncated__
+##   .. ..$ hero_id   : int 90
+##   .. ..$ team      : int 1
+##   ..$ :List of 4
+##   .. ..$ account_id: int 53178236
+##   .. ..$ name      : chr "Sedoy"
+##   .. ..$ hero_id   : int 18
+##   .. ..$ team      : int 0
+##   ..$ :List of 4
+##   .. ..$ account_id: int 84692724
+##   .. ..$ name      : chr "PANDA"
+##   .. ..$ hero_id   : int 110
+##   .. ..$ team      : int 1
+##   ..$ :List of 4
+##   .. ..$ account_id: int 86840554
+##   .. ..$ name      : chr "tmw"
+##   .. ..$ hero_id   : int 15
+##   .. ..$ team      : int 0
+##   ..$ :List of 4
+##   .. ..$ account_id: int 123787524
+##   .. ..$ name      : chr "Shachlo"
+##   .. ..$ hero_id   : int 60
+##   .. ..$ team      : int 0
+##   ..$ :List of 4
+##   .. ..$ account_id: int 159020918
+##   .. ..$ name      : chr "RodjER"
+##   .. ..$ hero_id   : int 37
+##   .. ..$ team      : int 0
+##   ..$ :List of 4
+##   .. ..$ account_id: int 148096933
+##   .. ..$ name      : chr "number0"
+##   .. ..$ hero_id   : int 47
+##   .. ..$ team      : int 1
+##   ..$ :List of 4
+##   .. ..$ account_id: int 11550182
+##   .. ..$ name      : chr "VANSKOR"
+##   .. ..$ hero_id   : int 69
+##   .. ..$ team      : int 0
+##   ..$ :List of 4
+##   .. ..$ account_id: int 86817707
+##   .. ..$ name      : chr "72293768"
+##   .. ..$ hero_id   : int 82
+##   .. ..$ team      : int 1
+##  $ radiant_team       :List of 4
+##   ..$ team_name: chr "FlipSid3 Tactics"
+##   ..$ team_id  : int 2790766
+##   ..$ team_logo: num 2.78e+17
+##   ..$ complete : logi TRUE
+##  $ lobby_id           : num 2.48e+16
+##  $ match_id           : num 2.73e+09
+##  $ spectators         : int 1256
+##  $ series_id          : int 0
+##  $ game_number        : int 0
+##  $ league_id          : int 5027
+##  $ stream_delay_s     : int 300
+##  $ radiant_series_wins: int 0
+##  $ dire_series_wins   : int 0
+##  $ series_type        : int 0
+##  $ league_series_id   : int 0
+##  $ league_game_id     : int 0
+##  $ stage_name         : chr ""
+##  $ league_tier        : int 3
+##  $ scoreboard         :List of 4
+##   ..$ duration            : num 1035
+##   ..$ roshan_respawn_timer: int 377
+##   ..$ radiant             :List of 11
+##   .. ..$ score         : int 13
+##   .. ..$ tower_state   : int 1983
+##   .. ..$ barracks_state: int 63
+##   .. ..$ picks         :List of 5
+## truncated...
+```
+
+### get_match_details
+
+`get_match_details` provides information about the game and the players participating in a specific
+match. The function requires a `match_id` to be provided. The function ouputs a list which contains
+information about the players and the match. The first element of the content list contains
+information about the players. The following details are included:
+
+* account_id: The player's account id.
+* player_slot: A player's slot is returned via an 8-bit unsigned integer. The first bit represent the player's team, false if Radiant and true if dire. The final three bits represent the player's position in that team, from 0-4.
+* hero_id: The hero id.
+* item_0: Top-left inventory item.
+* item_1: Top-center inventory item.
+* item_2: Top-right inventory item.
+* item_3: Bottom-left inventory item.
+* item_4: Bottom-center inventory item.
+* item_5: Bottom-right inventory item.
+* kills: Number of times player killed.
+* deaths: Number of times player died.
+* assists: Number of assists player achieved.
+* leaver_status: Integer from 0-6. Check API documentation.
+* last_hits: Number of last hits.
+* denies: Number of denies.
+* level: Hero level at the end of game.
+* xp_per_min: Xp per minute gained.
+* hero_damage: Total damage dealt to heroes.
+* tower_damage: Total damage dealt to towers.
+* hero_healing: Total health healed on heroes.
+* gold: Total gold left at the end of game.
+* gold_spent: Total gold spent.
+* scaled_hero_damage: Undocumented. Possibly damage after armour.
+* scaled_tower_damage: Undocumented.
+* scaled_hero_healing: Undocumented.
+* ability_upgrades: A list of all abilities in order of upgrade.
+
+
+ The rest of the elements of the content list contain information about the match. The following
+ details are included:
+
+* radiant_win: Boolean. Whether radiant won or not.
+* duration: The duration of a game in seconds.
+* pre_game_duration: The pre game duration.
+* start_time: Unix Timestamp of when the game began.
+* match_id: The match's unique id.
+* match_seq_num: A sequence number. It represents the order matches were recorded.
+* tower_status_radiant: Tower Status. Check API documentation.
+* barracks_status_dire: Same as above.
+cluster: The server cluster (used for downloading replays).
+* first_blood_time: Time in seconds when the first blood occured.
+* lobby_type: Type of lobby.
+* human_players: Number of human players.
+* leagueid: The league id.
+* positive_votes: Number of positive votes.
+* negative_votes: Number of negative votes.
+* game_mode: Game mode.
+* flags: Undocumented.
+* engine: 0 - source1, 1 - source 2.
+* radiant_score: Undocumented.
+* dire_score: Undocumented.
+
+Steam API Documentation: [GetMatchDetails](https://wiki.teamfortress.com/wiki/WebAPI/GetMatchDetails)
+
+```{R, eval = NOT_ALL}
+#match list contains information about both players and the match
+match_details <- get_match_details(match_id = 2686721815)$content
+
+#match_details[[1]] is a list with all the players - usually 10
+#match_details[[1]][[1]] is just one of the 10 players
+str(match_details[[1]][[1]])
+
+#information about the match
+str(match_details[-1])
+```
+
+### get_match_history
+
+`get_match_details` provides information about matches according to a number of parameters. The 
+available parameters are:
+
+* hero_id	- (optional) The hero id. A list of hero ids can be found via the get_heroes function.
+* game_mode	- (optional) The game mode:
+    * 0 - None
+    * 1 - All Pick
+    * 2 - Captain's Mode
+    * 3 - Random Draft
+    * 4 - Single Draft
+    * 5 - All Random
+    * 6 - Intro
+    * 7 - Diretide
+    * 8 - Reverse Captain's Mode
+    * 9 - The Greeviling
+    * 10 - Tutorial
+    * 11 - Mid Only
+    * 12 - Least Played
+    * 13 - New Player Pool
+    * 14 - Compendium Matchmaking
+    * 16 - Captain's Draft
+    * No 15 does not exist
+* skill	- (optional) Skill bracket.
+    * 0 - Any
+    * 1 - Normal
+    * 2 - High
+    * 3 - Very High
+* date_min	- (optional) Minimum date range for returned matches (yyyy-mm-dd HH:MM:SS).
+* date_max	 - (optional) Maximum date range for returned matches (yyyy-mm-dd HH:MM:SS).
+* min_players	- (optional) Minimum number of players in match.
+* account_id	- (optional) Account ID.
+* league_id	- (optional) League ID.
+* start_at_match_id - (optional) Matches equal or older than this ID.
+* matches_requested - (optional) Amount of matches to return (defaults to 25).
+* tournament_games_only	- (optional) Binary (0 or 1). Whether to return tournament matches.
+
+The content element of the list contains a list called matches.
+Each element of matches list is a match. Each match contains the following sections:
+
+* match_id: The match id.
+* match_seq_num:A sequence number, representing the order in which matches were recorded.
+* start_time: UNIX timestamp of when the game began.
+* lobby_type: Check the API Documentation.
+* radiant_team_id: Radiant team id.
+* dire_team_id: Dire team id.
+* players: A list containing information about the players.
+
+Steam API Documentation: [GetMatchHistory](https://wiki.teamfortress.com/wiki/WebAPI/GetMatchHistory)
+
+```{R, eval = NOT_ALL}
+#match list contains information about both players and the match
+match_details <- get_match_history(matches_requested = 2, 
+                                   date_min = '2015-01-01 16:00:00', 
+                                   hero_id = 1)$content
+
+#information about the first match
+str(match_details[[1]][[1]])
+```
+
+### get_match_history_by_sequence_num
+
+`get_match_history_by_sequence_num` provides information about matches ordered by a sequence number.
+The function can get `start_at_match_seq_num` and `matches_requested` as arguments but both are optional.
+The function returns  a list called matches. Each match follows exactly the same structure as 
+the match retrieved from `get_match_details`.    
+Please see that function for the exact details.
+
+Steam API Documentation: [GetMatchHistoryBySequenceNum](https://wiki.teamfortress.com/wiki/WebAPI/GetMatchHistoryBySequenceNum)
+
+```{R, eval = NOT_ALL}
+#get 1 match (out of 2) - match_seq_nums are 250 and 251 
+str(get_match_history_by_sequence_num(matches_requested = 2, 
+                                      start_at_match_seq_num = 250)$content$matches[[1]])
+```
+
+### get_scheduled_league_games
+
+`get_scheduled_league_games` returns a list of scheduled league games coming up. The function can
+get two optional arguments `date_min` and `date_max` specifying the time period in which to get the
+games. The function returns a list called games. Each game contains the following sections:
+
+* league_id: The unique league id.
+* game_id: A unique game id.
+* teams: A list of the participating teams.
+* starttime: Unix Timestamp of start time.
+* comment: Description of game.
+* final: Whether the game is a final or not.
+
+Steam API DOcumentation [GetScheduledLeagueGames](https://wiki.teamfortress.com/wiki/WebAPI/GetScheduledLeagueGames)
+
+```{R, eval = NOT_ALL}
+#no scheduled games at the time of writing
+str(get_scheduled_league_games()$content)
+```
+
+### get_team_info_by_team_id
+
+`get_team_info_by_team_id` provides informationa about a team given a team id. The function can
+get two optional arguments. `start_at_team_id` specifies the team id to start returning results
+from and `teams_requested` specifies the number of teams to return. The function returns a teams
+list of which each element is a match. The following information for each match is provided:
+
+* name: Team's name.
+* tag: The team's tag.
+* time_created: Unix timestamp of when the team was created.
+* calibration_games_remaining: : Undocumented (possibly number of games until a ranking score can be dedided).
+* logo: The UGC id for the team logo.
+* logo_sponsor: The UGC id for the team sponsor logo.
+* country_code: The team's ISO 3166-1 country-code.
+* url: Team's url which they provided.
+* games_played: Number of games played.
+* player_\*_account_id: Player's account id. Will be as many columns as players.
+* admin_account_id: Team's admin id.
+* league_id_\*: Undocumented (Probably leagues they participated in). Will be as many columns as leagues.
+* series_type: Series type.
+* league_series_id: The league series id.
+* league_game_id: The league game id.
+* stage_name: The name of the stage.
+* league_tier: League tier.
+* scoreboard: A huge list containing scoreboard information.
+
+Steam API Documentation: [GetTeamInfoByTeamID](https://wiki.teamfortress.com/wiki/WebAPI/GetTeamInfoByTeamID)
+
+```{R, eval = NOT_ALL}
+#information about one team
+str(get_team_info_by_team_id()$content$teams[[1]])
+```
+
+### get_tournament_player_stats
+
+`get_tournament_player_stats` provides information about tournament players' stats. It requires an
+`account_id` and optionally a `league_id` (only the international is supported i.e. 65006), a 
+`hero_id` or a `time_frame` (this is not functional just yet according to the Steam API 
+Documentation). The function returns a list that contains information about the matches the player
+played and information about global stats.
+
+Steam API Documentation: [GetTournamentPlayerStats](https://wiki.teamfortress.com/wiki/WebAPI/GetTournamentPlayerStats)
+
+```{R, eval = NOT_ALL}
+#request seems to be successful but I couldn't find an account id that returned player stats
+str(get_tournament_player_stats(account_id = 89550641, league_id = 65006)$content)
+```
+
+### get_top_live_game
+
+`get_top_live_game` returns the top live games by MMR. It requires a `partner` parameter 
+(not optional) but the API documentation does not specify what it actually is. Values of 1 or 2 or
+3 seem to be working. The function returns a `games_list` list which contains information about the top
+live games. The following categories are returns for each game. They are not documented on the API:
+
+* activate_time
+* deactivate_time
+* server_steam_id
+* lobby_id
+* league_id
+* lobby_type
+* game_time
+* delay
+* spectators
+* game_mode
+* average_mmr
+* sort_score
+* last_update_time
+* radiant_lead
+* radiant_score
+* dire_score
+* players
+* building_state
+
+Steam API Documentation: [GetTopLiveGame](https://wiki.teamfortress.com/wiki/WebAPI/GetTopLiveGame)
+
+```{R, eval = NOT_ALL}
+#information about one team
+str(get_top_live_game(partner = 1)$content$game_list[[1]])
+```
+
+### get_game_items
+
+`get_game_items` returns information about Dota's items. The function does not require any 
+extra arguments and outputs a data.frame with the following columns:
+
+* id: Item's ID.
+* name: Item's tokenised name.
+* cost: Item's in-game cost.
+* secret_shop: Boolean. Whether it is sold in the secret shop.
+* side_shop: Boolean. Whether it is sold in the side shop.
+* recipe: Boolean. Whether it is a recipe.
+* localized_name: Localised name of item.
+
+Steam API Documentation: [GetGameItems](https://wiki.teamfortress.com/wiki/WebAPI/GetGameItems)
+
+```{R, eval = NOT_ALL}
+str(get_game_items()$content)
+```
+
+### get_heroes
+
+`get_heroes` returns information about Dota's heroes. The function does not require any 
+extra arguments and outputs a data.frame with the following columns:
+
+* name: Hero's name.
+* id: Hero's ID.
+* localized_name: Name of the hero in-game.
+
+Steam API Documentation: [GetHeroes](https://wiki.teamfortress.com/wiki/WebAPI/GetHeroes)
+
+```{R, eval = NOT_ALL}
+str(get_heroes()$content)
+```
+
+### get_rarities
+
+`get_rarities` returns information about Dota's item rarities. The function does not require any 
+extra arguments and outputs a data.frame with the following columns:
+
+* name: Internal rarity name.
+* id: Rarity's ID.
+* order: Logical order of rarities. From most common to most rare.
+* color: Hexadecimal RGB color of the rarity's name.
+* localized_name: In-game rarity name.
+
+Steam API Documentation: [GetRarities](https://wiki.teamfortress.com/wiki/WebAPI/GetRarities)
+
+```{R, eval = NOT_ALL}
+get_rarities()$content
+```
+
+### get_tournament_prize_pool
+
+`get_tournament_prize_pool` returns information about Dota's tournament prizes. The function can 
+take an optional `leagueid` argument (the league id to get the prize for) and outputs a data.frame 
+with the following columns:
+
+* prize_pool: The prize pool.
+* league_id: The league's id.
+
+Steam API Documentation: [GetTournamentPrizePool](https://wiki.teamfortress.com/wiki/WebAPI/GetTournamentPrizePool)
+
+```{R, eval = NOT_ALL}
+str(get_tournament_prize_pool()$content)
+```
+
+### get_event_stats_for_account
+
+`get_event_stats_for_account` returns an account's event stats. The function takes two arguments. An
+`eventid` argument (the league id) and an `accountid` argument (account id to get stats for). A list
+will be returned but the contents of it are not documented in the Steam API Documentation. The function 
+returns a list that contains:
+
+* event_points
+* actions
+
+Steam API Documentation: [GetEventStatsForAccount](https://wiki.teamfortress.com/wiki/WebAPI/GetEventStatsForAccount)
+
+```{R, eval = NOT_ALL}
+get_event_stats_for_account(eventid = 65006, accountid = 89550641)$content
+```
+
+### get_item_icon_path
+
+`get_item_icon_path` returns the icon path for an item. It requires an `iconname` (The item icon name) 
+and an `icontype` (the type of image - 0 is normal, 1 is large and 3 is ingame) argument. There is no
+documentation regarding this method in the Steam API Documentation at the time of writing.
+
+Steam API Documentation: [GetItemIconPath](https://wiki.teamfortress.com/wiki/WebAPI/GetItemIconPath)
+
+### BUGS / FEATURES
+
+If you would like to make any recommendations or give feedback or report a bug please visit the
+development site on [github](https://github.com/LyzandeR/RDota2).
+
+
+You made it to the end of the documentation! Thanks for reading! 
